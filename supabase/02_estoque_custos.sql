@@ -450,3 +450,10 @@ select * from (values
   ('Sacola',                 'embalagem',   'un')
 ) as v(name, category, unit)
 where not exists (select 1 from public.ingredients);
+
+-- ---------------------------------------------------------------------
+-- 13. PERMISSÕES DA API para usuários logados (RLS continua valendo)
+-- ---------------------------------------------------------------------
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant execute on all functions in schema public to authenticated;

@@ -207,3 +207,13 @@ where not exists (select 1 from public.products);
 --  select id, email, 'Nome da pessoa' from auth.users
 --  where email = 'email@exemplo.com';
 -- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 10. PERMISSÕES DA API para usuários logados (o RLS acima continua
+--     decidindo quem vê o quê). Necessário em projetos novos do Supabase.
+-- ---------------------------------------------------------------------
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant execute on all functions in schema public to authenticated;
+alter default privileges in schema public grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema public grant execute on functions to authenticated;
