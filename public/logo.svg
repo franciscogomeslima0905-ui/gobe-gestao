@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <circle cx="60" cy="60" r="58" fill="#CE0D32"/>
+  <circle cx="60" cy="60" r="51" fill="none" stroke="#F3B4D0" stroke-width="1.5" stroke-dasharray="2 4"/>
+  <text x="60" y="73" text-anchor="middle" font-family="Playfair Display, Georgia, serif" font-size="44" font-weight="700" fill="#F6EFE5" letter-spacing="-2">GB</text>
+  <path d="M42 84 q18 8 36 0" fill="none" stroke="#F3B4D0" stroke-width="2.2" stroke-linecap="round"/>
+</svg>
