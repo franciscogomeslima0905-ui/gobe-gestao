@@ -36,6 +36,7 @@ export default function PublicOrder() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ code: string; total: number } | null>(null);
+  const [highlight, setHighlight] = useState<string[]>([]);
 
   useEffect(() => {
     document.title = 'Peça seus brownies · GB GOBÊ';
@@ -44,7 +45,21 @@ export default function PublicOrder() {
       .then(({ data, error: e }) => {
         if (e || !data) return setLoadError(true);
         const d = data as { products: MenuProduct[]; days: MenuDay[] };
-        setMenu({ products: d.products.map((p) => ({ ...p, price: Number(p.price) })), days: d.days });
+        const products = d.products.map((p) => ({ ...p, price: Number(p.price) }));
+        setMenu({ products, days: d.days });
+
+        // Produto escolhido no site da bio (?item=nutella): já entra no carrinho ou fica em destaque
+        const item = new URLSearchParams(window.location.search).get('item');
+        if (item) {
+          const key = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const term = key(item);
+          const matches = products.filter((p) => key(p.name) === term || key(`${p.name}${p.flavor ?? ''}`) === term);
+          if (matches.length === 1) setCart({ [matches[0].id]: 1 });
+          if (matches.length) {
+            setHighlight(matches.map((m) => m.id));
+            setTimeout(() => document.getElementById(`produto-${matches[0].id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+          }
+        }
       });
   }, []);
 
@@ -167,7 +182,14 @@ export default function PublicOrder() {
               {menu.products.map((p) => {
                 const q = cart[p.id] ?? 0;
                 return (
-                  <div key={p.id} className={cx('flex items-center gap-3 rounded-2xl bg-white p-3 ring-1 transition', q ? 'ring-cereja/40' : 'ring-bordo/5')}>
+                  <div
+                    key={p.id}
+                    id={`produto-${p.id}`}
+                    className={cx(
+                      'flex items-center gap-3 rounded-2xl bg-white p-3 ring-1 transition',
+                      q ? 'ring-2 ring-cereja/50' : highlight.includes(p.id) ? 'ring-2 ring-rosa-500' : 'ring-bordo/5',
+                    )}
+                  >
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-bordo">{productLabel(p.name, p.flavor)}</p>
                       <p className="text-sm font-bold text-cereja">{brl(p.price)}</p>
