@@ -69,3 +69,6 @@ export const uid = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+/** Só a primeira letra maiúscula: "quarta-feira, 25 de novembro" → "Quarta-feira, 25 de novembro" */
+export const capFirst = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
