@@ -9,7 +9,7 @@ import { errorMessage, useUI } from '../context/UIContext';
 import { productLabel } from '../lib/calc';
 import { DELIVERY_DAYS } from '../lib/constants';
 import { exportCSV, exportExcel, type Row } from '../lib/export';
-import { fmtDate, fmtLong, num, parseDay, toISODate, todayISO } from '../lib/format';
+import { capFirst, fmtDate, fmtLong, num, parseDay, toISODate, todayISO } from '../lib/format';
 import type { OrderFull, OrderItem } from '../lib/types';
 
 interface Line {
@@ -167,7 +167,7 @@ export default function Production() {
           <Logo />
           <div className="text-right">
             <p className="font-display text-xl font-semibold">Lista de produção</p>
-            <p className="text-sm capitalize">{fmtLong(parseDay(current.date))}</p>
+            <p className="text-sm">{capFirst(fmtLong(parseDay(current.date)))}</p>
           </div>
         </div>
       </div>

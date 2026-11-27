@@ -10,7 +10,7 @@ import { errorMessage, useUI } from '../context/UIContext';
 import { productLabel } from '../lib/calc';
 import { UNITS, categoryForIngredient, fmtQty, perSliceUsage } from '../lib/costs';
 import { exportCSV } from '../lib/export';
-import { brl, round2 } from '../lib/format';
+import { brl, capFirst, round2 } from '../lib/format';
 import { getRange, rangeLabel, type PeriodState } from '../lib/period';
 import { ordersIn } from '../lib/stats';
 import type { Ingredient, PurchaseDraft } from '../lib/types';
@@ -202,7 +202,7 @@ export default function ShoppingList() {
 
       <div className="print-only">
         <h1 className="font-display text-2xl font-semibold">Lista de compras · GB GOBÊ</h1>
-        <p className="text-sm capitalize">{rangeLabel(period)}</p>
+        <p className="text-sm">{capFirst(rangeLabel(period))}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

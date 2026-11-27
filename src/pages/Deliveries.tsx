@@ -1,26 +1,41 @@
 import { addDays } from 'date-fns';
-import { CakeSlice, CheckCircle2, CircleDollarSign, Clock, Hourglass, Package, Plus, Receipt, Truck } from 'lucide-react';
+import { Ban, CakeSlice, CheckCircle2, ChefHat, CircleDollarSign, Clock, Hourglass, Package, PackageCheck, Plus, Receipt, Truck, Wallet, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import OrderActions from '../components/OrderActions';
-import { CustomerCell, DeliveryButton, ItemChecklist, ProductionSelect } from '../components/OrderBits';
+import { CustomerCell, DeliveryButton, ItemChecklist, ProductionSelect, ReceiveButton } from '../components/OrderBits';
 import WeekSelector from '../components/WeekSelector';
-import { Button, Card, Chip, EmptyState, PageHeader, PaymentBadge, ProgressBar, SearchInput, StatCard, StatusBadge, cx } from '../components/ui';
+import { Button, Card, EmptyState, PageHeader, PaymentBadge, ProgressBar, SearchInput, StatCard, StatusBadge, cx } from '../components/ui';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { DELIVERY_DAYS, PAYMENT_METHOD_LABEL, STATUS_META } from '../lib/constants';
-import { brl, fmtLong, normalize, num, parseDay, toISODate } from '../lib/format';
+import { brl, capFirst, fmtLong, normalize, num, parseDay, toISODate } from '../lib/format';
 import { summarize } from '../lib/stats';
-import type { DisplayStatus, OrderFull } from '../lib/types';
+import type { OrderFull } from '../lib/types';
 
-const FILTERS: (DisplayStatus | 'todos')[] = ['todos', 'pendente', 'em_producao', 'pronto', 'entregue', 'cancelado'];
+/** Abas do dia: cada pedido fica em uma só, conforme produção, entrega e pagamento */
+type Tab = 'producao' | 'prontos' | 'a_receber' | 'concluidos' | 'cancelados';
+
+const TABS: { id: Tab; label: string; hint: string; icon: LucideIcon; active: string; idle: string }[] = [
+  { id: 'producao', label: 'A produzir', hint: 'Pendentes ou em produção', icon: ChefHat, active: 'bg-amber-500 text-white', idle: 'text-amber-700' },
+  { id: 'prontos', label: 'Prontos para entregar', hint: 'Prontos, ainda não entregues', icon: Package, active: 'bg-emerald-600 text-white', idle: 'text-emerald-700' },
+  { id: 'a_receber', label: 'Entregues sem pagamento', hint: 'Entregues, falta receber', icon: Wallet, active: 'bg-orange-600 text-white', idle: 'text-orange-700' },
+  { id: 'concluidos', label: 'Concluídos', hint: 'Entregues e pagos', icon: PackageCheck, active: 'bg-violet-600 text-white', idle: 'text-violet-700' },
+  { id: 'cancelados', label: 'Cancelados', hint: 'Fora das vendas', icon: Ban, active: 'bg-red-600 text-white', idle: 'text-red-700' },
+];
+
+export const tabOf = (o: OrderFull): Tab => {
+  if (o.cancelled) return 'cancelados';
+  if (o.delivery_status === 'entregue') return o.balance > 0.004 ? 'a_receber' : 'concluidos';
+  return o.production_status === 'pronto' ? 'prontos' : 'producao';
+};
 
 export default function Deliveries() {
   const { dia } = useParams();
   const day = DELIVERY_DAYS.find((d) => d.slug === dia);
   const { orders } = useData();
   const { week, openOrderForm } = useUI();
-  const [filter, setFilter] = useState<DisplayStatus | 'todos'>('todos');
+  const [tab, setTab] = useState<Tab>('producao');
   const [q, setQ] = useState('');
 
   const date = day ? toISODate(addDays(parseDay(week), day.offset)) : '';
@@ -29,22 +44,23 @@ export default function Deliveries() {
 
   const visible = useMemo(() => {
     const term = normalize(q);
-    return dayOrders.filter((o) => (filter === 'todos' || o.status === filter) && (!term || normalize(o.customer_name).includes(term)));
-  }, [dayOrders, filter, q]);
+    return dayOrders.filter((o) => tabOf(o) === tab && (!term || normalize(o.customer_name).includes(term)));
+  }, [dayOrders, tab, q]);
 
   if (!day) return <Navigate to="/" replace />;
 
-  const counts = FILTERS.reduce<Record<string, number>>((acc, f) => {
-    acc[f] = f === 'todos' ? dayOrders.length : dayOrders.filter((o) => o.status === f).length;
-    return acc;
-  }, {});
+  const counts = TABS.reduce<Record<Tab, number>>(
+    (acc, t) => ({ ...acc, [t.id]: dayOrders.filter((o) => tabOf(o) === t.id).length }),
+    { producao: 0, prontos: 0, a_receber: 0, concluidos: 0, cancelados: 0 },
+  );
+  const current = TABS.find((t) => t.id === tab)!;
   const progress = s.slices ? (s.produced / s.slices) * 100 : 0;
 
   return (
     <div>
       <PageHeader
         title={`Entregas de ${day.label.toLowerCase()}`}
-        subtitle={<span className="capitalize">{fmtLong(parseDay(date))}</span>}
+        subtitle={capFirst(fmtLong(parseDay(date)))}
         actions={
           <>
             <WeekSelector />
@@ -76,26 +92,53 @@ export default function Deliveries() {
         </Card>
       )}
 
-      {/* Filtros */}
-      <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="scrollbar-thin -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-          {FILTERS.map((f) => (
-            <Chip key={f} active={filter === f} onClick={() => setFilter(f)} dot={f !== 'todos' ? STATUS_META[f].dot : undefined}>
-              {f === 'todos' ? 'Todos' : STATUS_META[f].label} ({counts[f]})
-            </Chip>
-          ))}
-        </div>
-        <div className="lg:w-72">
-          <SearchInput value={q} onChange={setQ} placeholder="Pesquisar cliente…" />
-        </div>
+      {/* Abas */}
+      <div className="scrollbar-thin -mx-1 mt-6 flex gap-2 overflow-x-auto px-1 pb-2 lg:grid lg:grid-cols-5 lg:overflow-visible">
+        {TABS.map((t) => {
+          const isActive = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cx(
+                'flex min-w-[150px] items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all',
+                isActive ? `${t.active} shadow-lift` : 'bg-white shadow-soft ring-1 ring-bordo/5 hover:-translate-y-0.5',
+              )}
+            >
+              <t.icon className={cx('h-5 w-5 shrink-0', isActive ? 'text-white' : t.idle)} />
+              <span className="min-w-0 flex-1">
+                <span className={cx('block text-sm font-bold leading-tight', isActive ? 'text-white' : 'text-bordo')}>{t.label}</span>
+                <span className={cx('block text-[11px] leading-tight', isActive ? 'text-white/80' : 'text-bordo/50')}>{t.hint}</span>
+              </span>
+              <span
+                className={cx(
+                  'flex h-7 min-w-[28px] items-center justify-center rounded-full px-2 text-sm font-bold',
+                  isActive ? 'bg-white/25 text-white' : counts[t.id] ? 'bg-rosa-50 text-cereja' : 'bg-creme text-bordo/40',
+                )}
+              >
+                {counts[t.id]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 lg:w-72">
+        <SearchInput value={q} onChange={setQ} placeholder="Pesquisar cliente…" />
       </div>
 
       <div className="mt-4">
         {visible.length === 0 ? (
           <EmptyState
-            icon={Truck}
-            title={dayOrders.length ? 'Nenhum pedido com esse filtro' : 'Nenhuma entrega neste dia'}
-            text={dayOrders.length ? 'Tente outro filtro ou limpe a pesquisa.' : 'Os pedidos com entrega nesta data aparecerão aqui.'}
+            icon={current.icon}
+            title={!dayOrders.length ? 'Nenhuma entrega neste dia' : q ? 'Nenhum cliente encontrado' : `Nada em “${current.label}”`}
+            text={
+              !dayOrders.length
+                ? 'Os pedidos com entrega nesta data aparecerão aqui.'
+                : tab === 'producao' && !q
+                  ? 'Toda a produção do dia está pronta. 🎉'
+                  : 'Confira as outras abas acima.'
+            }
             action={!dayOrders.length && <Button icon={Plus} onClick={() => openOrderForm({ initial: { delivery_date: date } })}>Cadastrar pedido</Button>}
           />
         ) : (
@@ -153,6 +196,9 @@ function DesktopTable({ orders }: { orders: OrderFull[] }) {
                 <td className="px-4 py-3">
                   <PaymentBadge status={o.paymentStatusLive} />
                   <p className="mt-1 text-xs text-bordo/50">{PAYMENT_METHOD_LABEL[o.payment_method]}</p>
+                  <div className="mt-1.5">
+                    <ReceiveButton order={o} />
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <DeliveryButton order={o} />
@@ -197,7 +243,10 @@ function MobileCards({ orders }: { orders: OrderFull[] }) {
                 {o.producedSlices}/{o.slices} fatias prontas{o.balance > 0 ? ` · falta ${brl(o.balance)}` : ''}
               </p>
             </div>
-            <DeliveryButton order={o} />
+            <div className="flex flex-col items-end gap-1.5">
+              <DeliveryButton order={o} />
+              <ReceiveButton order={o} />
+            </div>
           </div>
         </div>
       ))}

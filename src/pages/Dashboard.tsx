@@ -41,7 +41,7 @@ import { useStock } from '../context/StockContext';
 import { useUI } from '../context/UIContext';
 import { buildAlerts } from '../lib/alerts';
 import { DELIVERY_DAYS, NO_DELIVERY_WEEKDAYS } from '../lib/constants';
-import { brl, fmtPattern, num, parseDay, round2, toISODate, todayISO } from '../lib/format';
+import { brl, capFirst, fmtPattern, num, parseDay, round2, toISODate, todayISO } from '../lib/format';
 import { daysOf, getRange, inRange, weekEnd, weekStart, type PeriodState, type Range } from '../lib/period';
 import { active, cashIn, customerStats, flavorStats, ordersIn, productStats } from '../lib/stats';
 import type { OrderFull } from '../lib/types';
@@ -129,7 +129,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <PageHeader
         title={`${greeting}${staffName ? `, ${staffName.split(' ')[0]}` : ''}!`}
-        subtitle={<span className="capitalize">{fmtPattern(now, "EEEE, dd 'de' MMMM 'de' yyyy")}</span>}
+        subtitle={capFirst(fmtPattern(now, "EEEE, dd 'de' MMMM 'de' yyyy"))}
       />
 
       {/* Faturamento fixo */}
@@ -365,7 +365,7 @@ function DeliveryCalendar({ orders }: { orders: OrderFull[] }) {
         action={
           <div className="flex items-center gap-1">
             <IconButton icon={ChevronLeft} label="Mês anterior" onClick={() => setMonth((m) => addMonths(m, -1))} />
-            <span className="min-w-[120px] text-center text-sm font-semibold capitalize text-bordo">{format(month, 'MMMM yyyy', { locale: ptBR })}</span>
+            <span className="min-w-[120px] text-center text-sm font-semibold text-bordo">{capFirst(format(month, 'MMMM yyyy', { locale: ptBR }))}</span>
             <IconButton icon={ChevronRight} label="Próximo mês" onClick={() => setMonth((m) => addMonths(m, 1))} />
           </div>
         }
