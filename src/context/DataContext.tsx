@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { derivePaymentStatus, deriveProductionStatus, enrichOrders, itemsSubtotal, orderTotal } from '../lib/calc';
-import { round2, todayISO } from '../lib/format';
+import { fmtDate, round2, todayISO } from '../lib/format';
 import { supabase } from '../lib/supabase';
 import type {
   DeliveryStatus,
@@ -24,6 +24,10 @@ const n = (v: unknown) => Number(v) || 0;
 const normProduct = (r: AnyRow): Product => ({ ...(r as unknown as Product), price: n(r.price), sort_order: n(r.sort_order) });
 const normOrder = (r: AnyRow): Order => ({
   ...(r as unknown as Order),
+  fulfillment: (r.fulfillment as Order['fulfillment']) ?? 'entrega',
+  address: (r.address as string | null) ?? null,
+  created_by: (r.created_by as string | null) ?? null,
+  source: r.source === 'site' ? 'site' : 'sistema',
   subtotal: n(r.subtotal),
   discount: n(r.discount),
   delivery_fee: n(r.delivery_fee),
@@ -170,9 +174,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
     reload();
 
     // Sincronização em tempo real entre dispositivos
+    const myId = session.user.id;
     const channel = supabase.channel('gobe-sync');
     (['products', 'orders', 'order_items', 'payments'] as TableName[]).forEach((table) => {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
+        if (table === 'orders' && payload.eventType === 'INSERT') {
+          const r = payload.new as AnyRow;
+          if (r.created_by !== myId) {
+            const name = `${String(r.customer_name ?? '')}${r.source === 'site' ? ' (pelo site)' : ''}`;
+            window.dispatchEvent(new CustomEvent('gobe:new-order', { detail: { name, when: fmtDate(String(r.delivery_date ?? '')) } }));
+          }
+        }
         if (payload.eventType === 'DELETE') {
           const id = (payload.old as AnyRow)?.id as string | undefined;
           if (id) removeRows(table, [id]);
@@ -243,6 +255,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         order_date: draft.order_date,
         delivery_date: draft.delivery_date,
         delivery_time: draft.delivery_time || null,
+        fulfillment: draft.fulfillment,
+        address: draft.fulfillment === 'entrega' ? draft.address.trim() || null : null,
         subtotal,
         discount: round2(draft.discount),
         delivery_fee: round2(draft.delivery_fee),
@@ -256,16 +270,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
         notes: draft.notes.trim() || null,
       };
 
+      // Se o banco ainda não tiver as colunas novas (arquivo 03 não rodado), salva sem elas
+      const missingCol = (e: { message?: string } | null) => !!e && /fulfillment|address/i.test(e.message ?? '') && /column|schema/i.test(e.message ?? '');
+      const { fulfillment: _f, address: _a, ...legacyRow } = row;
+
       let orderId = id;
       if (id) {
-        const { data, error } = await supabase.from('orders').update(row).eq('id', id).select().single();
-        if (error) throw error;
-        applyRows('orders', [data as AnyRow]);
+        let res = await supabase.from('orders').update(row).eq('id', id).select().single();
+        if (missingCol(res.error)) res = await supabase.from('orders').update(legacyRow).eq('id', id).select().single();
+        if (res.error) throw res.error;
+        applyRows('orders', [res.data as AnyRow]);
       } else {
-        const { data, error } = await supabase.from('orders').insert(row).select().single();
-        if (error) throw error;
-        applyRows('orders', [data as AnyRow]);
-        orderId = (data as AnyRow).id as string;
+        let res = await supabase.from('orders').insert(row).select().single();
+        if (missingCol(res.error)) res = await supabase.from('orders').insert(legacyRow).select().single();
+        if (res.error) throw res.error;
+        applyRows('orders', [res.data as AnyRow]);
+        orderId = (res.data as AnyRow).id as string;
       }
       const oid = orderId as string;
 

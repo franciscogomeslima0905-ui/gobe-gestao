@@ -1,7 +1,8 @@
 import { addDays } from 'date-fns';
 import { Ban, CakeSlice, CheckCircle2, ChefHat, CircleDollarSign, Clock, Hourglass, Package, PackageCheck, Plus, Receipt, Truck, Wallet, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useSettings } from '../context/SettingsContext';
 import OrderActions from '../components/OrderActions';
 import { CustomerCell, DeliveryButton, ItemChecklist, ProductionSelect, ReceiveButton } from '../components/OrderBits';
 import WeekSelector from '../components/WeekSelector';
@@ -36,6 +37,8 @@ export default function Deliveries() {
   const { orders } = useData();
   const { week, openOrderForm } = useUI();
   const [tab, setTab] = useState<Tab>('producao');
+  const navigate = useNavigate();
+  const { settings } = useSettings();
   const [q, setQ] = useState('');
 
   const date = day ? toISODate(addDays(parseDay(week), day.offset)) : '';
@@ -58,6 +61,39 @@ export default function Deliveries() {
 
   return (
     <div>
+      {/* Dias da semana */}
+      <div className="scrollbar-thin -mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1">
+        {DELIVERY_DAYS.map((d) => {
+          const dDate = toISODate(addDays(parseDay(week), d.offset));
+          const dOrders = orders.filter((o) => o.delivery_date === dDate && !o.cancelled);
+          const open = dOrders.filter((o) => tabOf(o) !== 'concluidos').length;
+          const slicesDay = dOrders.reduce((sum, o) => sum + o.slices, 0);
+          const full = settings.capacity > 0 && slicesDay >= settings.capacity;
+          const isActive = d.slug === day?.slug;
+          return (
+            <button
+              key={d.slug}
+              onClick={() => navigate(`/entregas/${d.slug}`)}
+              className={cx(
+                'min-w-[72px] flex-1 rounded-2xl px-3 py-2 text-center transition-all',
+                isActive ? 'bg-bordo text-creme shadow-lift' : 'bg-white text-bordo shadow-soft ring-1 ring-bordo/5',
+              )}
+            >
+              <span className="block text-sm font-bold">{d.short}</span>
+              <span className={cx('block text-[11px]', isActive ? 'text-creme/60' : 'text-bordo/45')}>{dDate.slice(8, 10)}/{dDate.slice(5, 7)}</span>
+              <span
+                className={cx(
+                  'mt-1 inline-block min-w-[22px] rounded-full px-1.5 text-[11px] font-bold leading-5',
+                  full ? 'bg-red-500 text-white' : open ? (isActive ? 'bg-white/20 text-white' : 'bg-rosa-50 text-cereja') : isActive ? 'text-creme/50' : 'text-bordo/30',
+                )}
+              >
+                {full ? 'lotado' : open}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       <PageHeader
         title={`Entregas de ${day.label.toLowerCase()}`}
         subtitle={capFirst(fmtLong(parseDay(date)))}
@@ -71,26 +107,19 @@ export default function Deliveries() {
         }
       />
 
-      {/* Resumo do dia */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
+      {/* Resumo do dia (enxuto) */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Pedidos" value={num(s.orders)} icon={Receipt} tone="bordo" />
-        <StatCard label="Fatias vendidas" value={num(s.slices)} icon={CakeSlice} tone="cereja" />
-        <StatCard label="Fatias produzidas" value={num(s.produced)} icon={CheckCircle2} tone="verde" />
-        <StatCard label="Fatias pendentes" value={num(s.pendingSlices)} icon={Hourglass} tone="amarelo" />
-        <StatCard label="Vendas do dia" value={brl(s.sales)} icon={CircleDollarSign} tone="rosa" />
-        <StatCard label="Recebido" value={brl(s.received)} icon={Package} tone="verde" />
+        <StatCard
+          label="Fatias prontas"
+          value={`${num(s.produced)}/${num(s.slices)}`}
+          icon={CakeSlice}
+          tone="cereja"
+          hint={s.slices ? <ProgressBar value={progress} className="mt-2 h-1.5" /> : undefined}
+        />
+        <StatCard label="Vendas do dia" value={brl(s.sales)} icon={CircleDollarSign} tone="verde" hint={`Recebido ${brl(s.received)}`} />
         <StatCard label="A receber" value={brl(s.pending)} icon={Clock} tone="laranja" />
       </div>
-
-      {s.slices > 0 && (
-        <Card className="mt-4 py-4">
-          <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="font-semibold text-bordo">Produção do dia</span>
-            <span className="font-bold text-cereja">{Math.round(progress)}%</span>
-          </div>
-          <ProgressBar value={progress} />
-        </Card>
-      )}
 
       {/* Abas */}
       <div className="scrollbar-thin -mx-1 mt-6 flex gap-2 overflow-x-auto px-1 pb-2 lg:grid lg:grid-cols-5 lg:overflow-visible">

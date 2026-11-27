@@ -4,6 +4,7 @@ export type ProductionStatus = 'pendente' | 'em_producao' | 'pronto';
 export type DeliveryStatus = 'pendente' | 'entregue';
 export type DisplayStatus = ProductionStatus | 'entregue' | 'cancelado';
 export type PaymentKind = 'recebimento' | 'estorno';
+export type Fulfillment = 'entrega' | 'retirada';
 
 export interface Product {
   id: string;
@@ -22,6 +23,11 @@ export interface Order {
   order_date: string;
   delivery_date: string;
   delivery_time: string | null;
+  fulfillment: Fulfillment;
+  address: string | null;
+  created_by: string | null;
+  /** 'site' = feito pelo cliente na página /pedir */
+  source: 'sistema' | 'site';
   subtotal: number;
   discount: number;
   delivery_fee: number;
@@ -96,6 +102,8 @@ export interface OrderDraft {
   order_date: string;
   delivery_date: string;
   delivery_time: string;
+  fulfillment: Fulfillment;
+  address: string;
   items: ItemDraft[];
   discount: number;
   delivery_fee: number;
@@ -251,4 +259,13 @@ export interface PurchaseDraft {
   lines: PurchaseLineDraft[];
   /** categoria usada quando a compra não tem itens */
   category: ExpenseCategory;
+}
+
+/* ============================ Configurações ============================ */
+export type PixKeyType = 'telefone' | 'cpf' | 'cnpj' | 'email' | 'aleatoria';
+
+export interface AppSettings {
+  pix: { type: PixKeyType; key: string; name: string; city: string };
+  /** limite de fatias por dia (0 = sem limite) */
+  capacity: number;
 }

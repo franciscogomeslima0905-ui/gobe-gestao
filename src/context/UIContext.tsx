@@ -1,8 +1,9 @@
 import { addWeeks } from 'date-fns';
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react';
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import OrderFormModal from '../components/OrderFormModal';
 import PaymentModal from '../components/PaymentModal';
+import ShareModal from '../components/ShareModal';
 import { Button, Modal, Textarea, cx } from '../components/ui';
 import { parseDay, toISODate } from '../lib/format';
 import { weekStart } from '../lib/period';
@@ -35,6 +36,8 @@ interface UIValue {
   confirm: (o: ConfirmOptions) => Promise<{ ok: boolean; reason: string }>;
   openOrderForm: (opts?: { orderId?: string; initial?: Partial<OrderDraft> }) => void;
   openPayment: (orderId: string, kind?: PaymentKind) => void;
+  /** WhatsApp, Pix e comprovante do pedido */
+  openShare: (orderId: string) => void;
   /** segunda-feira da semana selecionada (YYYY-MM-DD) */
   week: string;
   setWeek: (isoAnyDay: string) => void;
@@ -50,6 +53,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
   const resolver = useRef<((r: { ok: boolean; reason: string }) => void) | null>(null);
   const [orderForm, setOrderForm] = useState<OrderFormState>({ open: false });
   const [payment, setPayment] = useState<{ orderId: string; kind: PaymentKind } | null>(null);
+  const [share, setShare] = useState<string | null>(null);
   const [week, setWeekState] = useState(() => toISODate(weekStart(new Date())));
 
   const toast = useCallback((text: string, type: ToastType = 'success') => {
@@ -80,6 +84,18 @@ export function UIProvider({ children }: { children: ReactNode }) {
     setPayment({ orderId, kind });
   }, []);
 
+  const openShare = useCallback((orderId: string) => setShare(orderId), []);
+
+  // Aviso quando outra pessoa da equipe cadastra um pedido
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent<{ name: string; when: string }>).detail;
+      toast(`Novo pedido de ${d.name} · entrega ${d.when}`, 'info');
+    };
+    window.addEventListener('gobe:new-order', h);
+    return () => window.removeEventListener('gobe:new-order', h);
+  }, [toast]);
+
   const setWeek = useCallback((iso: string) => setWeekState(toISODate(weekStart(parseDay(iso)))), []);
   const shiftWeek = useCallback(
     (dir: 1 | -1) => setWeekState((w) => toISODate(addWeeks(parseDay(w), dir))),
@@ -89,7 +105,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
   const ICON = { success: CheckCircle2, error: XCircle, info: Info };
 
   return (
-    <UIContext.Provider value={{ toast, confirm, openOrderForm, openPayment, week, setWeek, shiftWeek }}>
+    <UIContext.Provider value={{ toast, confirm, openOrderForm, openPayment, openShare, week, setWeek, shiftWeek }}>
       {children}
 
       {orderForm.open && (
@@ -99,6 +115,8 @@ export function UIProvider({ children }: { children: ReactNode }) {
           onClose={() => setOrderForm({ open: false })}
         />
       )}
+
+      {share && <ShareModal orderId={share} onClose={() => setShare(null)} />}
 
       {payment && <PaymentModal orderId={payment.orderId} kind={payment.kind} onClose={() => setPayment(null)} />}
 
@@ -131,7 +149,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
         </div>
       </Modal>
 
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[min(92vw,380px)] flex-col gap-2 print:hidden">
+      <div className="pointer-events-none fixed bottom-24 right-4 z-[60] lg:bottom-4 flex w-[min(92vw,380px)] flex-col gap-2 print:hidden">
         {toasts.map((t) => {
           const Icon = ICON[t.type];
           return (

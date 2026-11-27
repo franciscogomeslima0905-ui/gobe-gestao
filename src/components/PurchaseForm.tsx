@@ -47,9 +47,11 @@ interface Props {
   onDone: (id: string) => void;
   onCancel?: () => void;
   submitLabel?: string;
+  /** usado direto numa página (não em janela): fica acima do menu de baixo no celular */
+  inPage?: boolean;
 }
 
-export default function PurchaseForm({ initial, source, file, fileName, fileHash, onDone, onCancel, submitLabel }: Props) {
+export default function PurchaseForm({ initial, source, file, fileName, fileHash, onDone, onCancel, submitLabel, inPage }: Props) {
   const { ingredients, ingMap, purchases, registerPurchase } = useStock();
   const { toast } = useUI();
   const [draft, setDraft] = useState<PurchaseDraft>(initial);
@@ -298,7 +300,7 @@ export default function PurchaseForm({ initial, source, file, fileName, fileHash
         </div>
       )}
 
-      <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-bordo p-4 text-creme shadow-lift">
+      <div className={cx("sticky z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-bordo p-4 text-creme shadow-lift", inPage ? "bottom-20 lg:bottom-0" : "bottom-0")}>
         <div className="text-sm">
           <p className="text-creme/60">Ao confirmar: despesa lançada, estoque e custos das receitas atualizados.</p>
           <p className="font-display text-xl font-semibold">{brl(total)}</p>

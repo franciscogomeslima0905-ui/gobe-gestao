@@ -31,7 +31,7 @@ import { useUI } from '../context/UIContext';
 import { buildAlerts } from '../lib/alerts';
 import { customerKey } from '../lib/calc';
 import { DELIVERY_DAYS } from '../lib/constants';
-import { brl, fmtDate, fmtPhone, normalize } from '../lib/format';
+import { brl, fmtDate, fmtPhone, normalize, toISODate } from '../lib/format';
 import Logo from './Logo';
 import { cx } from './ui';
 
@@ -42,6 +42,21 @@ interface NavItem {
   end?: boolean;
 }
 
+/** marcador: o link de Entregas aponta para o próximo dia de entrega */
+const ENTREGAS = '__entregas__';
+
+/** Hoje, se for dia de entrega; senão, o próximo */
+export function nextDeliveryDay(): { slug: string; date: string } {
+  const bySlug: Record<number, string> = { 1: 'segunda', 3: 'quarta', 5: 'sexta', 6: 'sabado', 0: 'domingo' };
+  const d = new Date();
+  for (let i = 0; i < 7; i++) {
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() + i);
+    const slug = bySlug[x.getDay()];
+    if (slug) return { slug, date: toISODate(x) };
+  }
+  return { slug: 'segunda', date: toISODate(d) };
+}
+
 const NAV: { group?: string; items: NavItem[] }[] = [
   {
     items: [
@@ -50,12 +65,9 @@ const NAV: { group?: string; items: NavItem[] }[] = [
     ],
   },
   {
-    group: 'Entregas',
-    items: DELIVERY_DAYS.map((d) => ({ to: `/entregas/${d.slug}`, label: `Entregas de ${d.label.toLowerCase()}`, icon: Truck })),
-  },
-  {
     group: 'Gestão',
     items: [
+      { to: ENTREGAS, label: 'Entregas', icon: Truck },
       { to: '/producao', label: 'Controle de produção', icon: ChefHat },
       { to: '/financeiro', label: 'Controle financeiro', icon: Wallet },
       { to: '/historico', label: 'Histórico de pedidos', icon: History },
@@ -110,22 +122,15 @@ export default function Layout() {
         </main>
       </div>
 
-      {/* Botão rápido de novo pedido */}
-      <button
-        type="button"
-        onClick={() => openOrderForm()}
-        className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-cereja text-white shadow-lift transition hover:scale-105 hover:bg-cereja-600 active:scale-95 lg:hidden print:hidden"
-        aria-label="Novo pedido rápido"
-      >
-        <Plus className="h-7 w-7" />
-      </button>
+      <BottomNav onMore={() => setOpen(true)} />
     </div>
   );
 }
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const { signOut, session, staffName } = useAuth();
-  const { confirm } = useUI();
+  const { confirm, setWeek } = useUI();
+  const location = useLocation();
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-bordo text-creme">
       {/* detalhe decorativo de confeitaria */}
@@ -154,12 +159,15 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
               {section.items.map((item) => (
                 <NavLink
                   key={item.to}
-                  to={item.to}
+                  to={item.to === ENTREGAS ? `/entregas/${nextDeliveryDay().slug}` : item.to}
                   end={item.end}
+                  onClick={() => item.to === ENTREGAS && setWeek(nextDeliveryDay().date)}
                   className={({ isActive }) =>
                     cx(
                       'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200',
-                      isActive ? 'bg-cereja text-white shadow-md shadow-black/20' : 'text-creme/75 hover:bg-white/[.07] hover:text-creme',
+                      isActive || (item.to === ENTREGAS && location.pathname.startsWith('/entregas'))
+                        ? 'bg-cereja text-white shadow-md shadow-black/20'
+                        : 'text-creme/75 hover:bg-white/[.07] hover:text-creme',
                     )
                   }
                 >
@@ -406,5 +414,60 @@ function StockSetupBanner() {
         </p>
       </div>
     </div>
+  );
+}
+
+/** Barra de navegação inferior (celular), estilo aplicativo */
+function BottomNav({ onMore }: { onMore: () => void }) {
+  const { openOrderForm, setWeek } = useUI();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const path = location.pathname;
+  const items: { label: string; icon: LucideIcon; active: boolean; go: () => void }[] = [
+    { label: 'Início', icon: LayoutDashboard, active: path === '/', go: () => navigate('/') },
+    {
+      label: 'Entregas',
+      icon: Truck,
+      active: path.startsWith('/entregas'),
+      go: () => {
+        const n = nextDeliveryDay();
+        setWeek(n.date);
+        navigate(`/entregas/${n.slug}`);
+      },
+    },
+    { label: 'Produção', icon: ChefHat, active: path === '/producao', go: () => navigate('/producao') },
+    { label: 'Mais', icon: Menu, active: false, go: onMore },
+  ];
+  const btn = (i: (typeof items)[number]) => (
+    <button
+      key={i.label}
+      onClick={i.go}
+      className={cx('flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold transition', i.active ? 'text-cereja' : 'text-bordo/55')}
+    >
+      <i.icon className={cx('h-[22px] w-[22px]', i.active && 'scale-110')} />
+      {i.label}
+    </button>
+  );
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-bordo/10 bg-white/95 backdrop-blur-md lg:hidden print:hidden"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
+      <div className="mx-auto flex max-w-md items-end">
+        {btn(items[0])}
+        {btn(items[1])}
+        <div className="flex flex-1 justify-center">
+          <button
+            onClick={() => openOrderForm()}
+            aria-label="Novo pedido"
+            className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-cereja text-white shadow-lift ring-4 ring-creme transition active:scale-95"
+          >
+            <Plus className="h-7 w-7" />
+          </button>
+        </div>
+        {btn(items[2])}
+        {btn(items[3])}
+      </div>
+    </nav>
   );
 }

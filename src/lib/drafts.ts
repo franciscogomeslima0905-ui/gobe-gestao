@@ -18,6 +18,8 @@ export const emptyDraft = (): OrderDraft => ({
   order_date: todayISO(),
   delivery_date: nextDeliveryDate(),
   delivery_time: '',
+  fulfillment: 'entrega',
+  address: '',
   items: [],
   discount: 0,
   delivery_fee: 0,
@@ -38,6 +40,8 @@ export const orderToDraft = (o: OrderFull): OrderDraft => {
     order_date: o.order_date,
     delivery_date: o.delivery_date,
     delivery_time: o.delivery_time ?? '',
+    fulfillment: o.fulfillment ?? 'entrega',
+    address: o.address ?? '',
     items: o.items.map((i) => ({
       key: i.id,
       id: i.id,
@@ -65,6 +69,8 @@ export const duplicateDraft = (o: OrderFull, products: Product[] = []): Partial<
   customer_name: o.customer_name,
   phone: o.phone ?? '',
   delivery_time: o.delivery_time ?? '',
+  fulfillment: o.fulfillment ?? 'entrega',
+  address: o.address ?? '',
   items: o.items.map((i) => ({
     key: uid(),
     product_id: i.product_id,

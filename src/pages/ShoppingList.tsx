@@ -282,7 +282,7 @@ export default function ShoppingList() {
       )}
 
       {rows.length > 0 && (
-        <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-bordo p-4 text-creme shadow-lift print:hidden">
+        <div className="sticky bottom-24 z-10 lg:bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-bordo p-4 text-creme shadow-lift print:hidden">
           <p className="text-sm">
             <b>{checkedRows.length}</b> item(ns) marcados · estimativa <b>{brl(checkedRows.reduce((s, r) => s + qtyOf(r) * r.unitCost, 0))}</b>
           </p>

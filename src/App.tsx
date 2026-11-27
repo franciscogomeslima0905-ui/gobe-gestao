@@ -7,6 +7,7 @@ import { Button, Spinner } from './components/ui';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
 import { StockProvider, useStock } from './context/StockContext';
+import { SettingsProvider } from './context/SettingsContext';
 import { UIProvider } from './context/UIContext';
 import { isSupabaseConfigured } from './lib/supabase';
 import Dashboard from './pages/Dashboard';
@@ -23,8 +24,11 @@ import Recipes from './pages/Recipes';
 import ScanReceipt from './pages/ScanReceipt';
 import ShoppingList from './pages/ShoppingList';
 import Stock from './pages/Stock';
+import PublicOrder from './pages/PublicOrder';
 
 export default function App() {
+  // Página pública de pedidos para clientes (não precisa de login)
+  if (window.location.pathname.startsWith('/pedir')) return <PublicOrder />;
   if (!isSupabaseConfigured) return <SetupNeeded />;
   return (
     <AuthProvider>
@@ -69,6 +73,7 @@ function Gate() {
   return (
     <DataProvider>
       <StockProvider>
+      <SettingsProvider>
       <UIProvider>
         <DataGate>
           <Routes>
@@ -91,6 +96,7 @@ function Gate() {
           </Routes>
         </DataGate>
       </UIProvider>
+      </SettingsProvider>
       </StockProvider>
     </DataProvider>
   );

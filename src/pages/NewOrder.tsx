@@ -46,6 +46,7 @@ export default function NewOrder() {
 
       <OrderForm
         key={formKey}
+        inPage
         onDone={(id) => {
           setLastId(id);
           setFormKey((k) => k + 1);

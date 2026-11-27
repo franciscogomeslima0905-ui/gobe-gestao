@@ -242,6 +242,7 @@ export default function ScanReceipt() {
             fileHash={hash}
             onDone={() => navigate('/estoque?aba=compras')}
             onCancel={reset}
+            inPage
           />
         </div>
       )}

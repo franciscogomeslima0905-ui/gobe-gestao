@@ -1,4 +1,4 @@
-import { CakeSlice, Plus, Save, Trash2, Truck, User, Wallet, type LucideIcon } from 'lucide-react';
+import { CakeSlice, ClipboardPaste, Plus, Save, Trash2, Truck, User, Wallet, type LucideIcon } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useData } from '../context/DataContext';
 import { errorMessage, useUI } from '../context/UIContext';
@@ -6,17 +6,20 @@ import { itemsSubtotal, orderTotal } from '../lib/calc';
 import { PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, PRODUCTION_LABEL } from '../lib/constants';
 import { emptyDraft, isNoDeliveryDay, orderToDraft } from '../lib/drafts';
 import { brl, fmtLong, parseDay, round2, uid } from '../lib/format';
-import type { ItemDraft, OrderDraft, PaymentMethod, PaymentStatus, Product, ProductionStatus } from '../lib/types';
-import { Button, Field, IconButton, Input, MoneyInput, Select, Textarea, cx } from './ui';
+import type { Fulfillment, ItemDraft, OrderDraft, PaymentMethod, PaymentStatus, Product, ProductionStatus } from '../lib/types';
+import { useSettings } from '../context/SettingsContext';
+import PasteOrderModal from './PasteOrderModal';
+import { Button, Field, IconButton, Input, MoneyInput, Segmented, Select, Textarea, cx } from './ui';
 
 interface Props {
   orderId?: string;
   initial?: Partial<OrderDraft>;
   onDone: (id: string) => void;
   onCancel?: () => void;
+  inPage?: boolean;
 }
 
-export default function OrderForm({ orderId, initial, onDone, onCancel }: Props) {
+export default function OrderForm({ orderId, initial, onDone, onCancel, inPage }: Props) {
   const { products, getOrder, saveOrder, orders } = useData();
   const { toast } = useUI();
   const existing = orderId ? getOrder(orderId) : undefined;
@@ -33,19 +36,34 @@ export default function OrderForm({ orderId, initial, onDone, onCancel }: Props)
   const set = <K extends keyof OrderDraft>(k: K, v: OrderDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
 
   const subtotal = itemsSubtotal(draft.items);
-  const total = orderTotal(subtotal, draft.discount, draft.delivery_fee);
+  const fee = draft.fulfillment === 'retirada' ? 0 : draft.delivery_fee;
+  const total = orderTotal(subtotal, draft.discount, fee);
   const slices = draft.items.reduce((s, i) => s + (i.quantity || 0), 0);
   const remaining = round2(Math.max(0, total - draft.amount_received));
 
   /* clientes já cadastrados, para autocompletar */
   const customers = useMemo(() => {
-    const map = new Map<string, string>();
-    orders.forEach((o) => {
-      if (!map.has(o.customer_name)) map.set(o.customer_name, o.phone ?? '');
-      else if (o.phone) map.set(o.customer_name, o.phone);
-    });
+    const map = new Map<string, { phone: string; address: string }>();
+    [...orders]
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .forEach((o) => {
+        const cur = map.get(o.customer_name) ?? { phone: '', address: '' };
+        map.set(o.customer_name, { phone: o.phone || cur.phone, address: o.address || cur.address });
+      });
     return map;
   }, [orders]);
+
+  /* limite de produção do dia */
+  const { settings } = useSettings();
+  const dayLoad = useMemo(
+    () =>
+      orders
+        .filter((o) => !o.cancelled && o.delivery_date === draft.delivery_date && o.id !== orderId)
+        .reduce((s, o) => s + o.slices, 0),
+    [orders, draft.delivery_date, orderId],
+  );
+  const overCapacity = settings.capacity > 0 && dayLoad + slices > settings.capacity;
+  const [pasting, setPasting] = useState(false);
 
   /* nomes de produtos ativos (+ os que já estão no pedido) */
   const productNames = useMemo(() => {
@@ -93,7 +111,7 @@ export default function OrderForm({ orderId, initial, onDone, onCancel }: Props)
       if (draft.amount_received <= 0) e.amount_received = 'Informe o valor recebido';
       else if (draft.amount_received >= total) e.amount_received = 'Valor igual ou maior que o total: use "Pago"';
     }
-    if (draft.discount > subtotal + draft.delivery_fee) e.discount = 'Desconto maior que o valor do pedido';
+    if (draft.discount > subtotal + fee) e.discount = 'Desconto maior que o valor do pedido';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -105,7 +123,10 @@ export default function OrderForm({ orderId, initial, onDone, onCancel }: Props)
     }
     setSaving(true);
     try {
-      const id = await saveOrder({ ...draft, items: draft.items.filter((i) => i.product_name) }, orderId);
+      const id = await saveOrder(
+        { ...draft, delivery_fee: draft.fulfillment === 'retirada' ? 0 : draft.delivery_fee, items: draft.items.filter((i) => i.product_name) },
+        orderId,
+      );
       toast(orderId ? 'Pedido atualizado com sucesso!' : 'Pedido cadastrado com sucesso!');
       onDone(id);
     } catch (err) {
@@ -125,6 +146,30 @@ export default function OrderForm({ orderId, initial, onDone, onCancel }: Props)
       }}
       className="space-y-5"
     >
+      {!orderId && (
+        <button
+          type="button"
+          onClick={() => setPasting(true)}
+          className="flex w-full items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3 text-left ring-1 ring-emerald-200 transition hover:bg-emerald-100"
+        >
+          <ClipboardPaste className="h-5 w-5 shrink-0 text-emerald-700" />
+          <span className="flex-1">
+            <span className="block text-sm font-bold text-emerald-900">Colar pedido do WhatsApp</span>
+            <span className="block text-xs text-emerald-800/70">Cole a mensagem do cliente e o pedido é preenchido sozinho</span>
+          </span>
+        </button>
+      )}
+      {pasting && (
+        <PasteOrderModal
+          onClose={() => setPasting(false)}
+          onResult={(patch) => {
+            setDraft((d) => ({ ...d, ...patch, items: patch.items && patch.items.length ? patch.items : d.items }));
+            setPasting(false);
+            toast('Pedido preenchido! Confira antes de salvar.', 'info');
+          }}
+        />
+      )}
+
       {/* Cliente e datas */}
       <Section icon={User} title="Cliente e entrega">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -134,7 +179,8 @@ export default function OrderForm({ orderId, initial, onDone, onCancel }: Props)
               value={draft.customer_name}
               onChange={(e) => {
                 const v = e.target.value;
-                setDraft((d) => ({ ...d, customer_name: v, phone: d.phone || customers.get(v) || '' }));
+                const c = customers.get(v);
+                setDraft((d) => ({ ...d, customer_name: v, phone: d.phone || c?.phone || '', address: d.address || c?.address || '' }));
               }}
               placeholder="Ex.: Maria Silva"
               autoFocus={!orderId}
@@ -159,6 +205,26 @@ export default function OrderForm({ orderId, initial, onDone, onCancel }: Props)
               <Input type="time" value={draft.delivery_time} onChange={(e) => set('delivery_time', e.target.value)} className="w-28" />
             </Field>
           </div>
+          <div className="sm:col-span-2">
+            <Segmented<Fulfillment>
+              value={draft.fulfillment}
+              onChange={(v) => set('fulfillment', v)}
+              options={[
+                { value: 'entrega', label: '🚗 Entrega' },
+                { value: 'retirada', label: '🏠 Retirada' },
+              ]}
+            />
+          </div>
+          {draft.fulfillment === 'entrega' && (
+            <Field label="Endereço" hint="Opcional · abre no Maps na lista de entregas" className="sm:col-span-2">
+              <Input value={draft.address} onChange={(e) => set('address', e.target.value)} placeholder="Rua, número, bairro" />
+            </Field>
+          )}
+          {overCapacity && (
+            <p className="rounded-xl bg-amber-50 p-3 text-xs font-semibold text-amber-800 ring-1 ring-amber-100 sm:col-span-2">
+              ⚠️ Este dia já tem {dayLoad} fatias. Com este pedido passa do limite de {settings.capacity}.
+            </p>
+          )}
         </div>
       </Section>
 
@@ -239,9 +305,11 @@ export default function OrderForm({ orderId, initial, onDone, onCancel }: Props)
             <Field label="Desconto" error={errors.discount}>
               <MoneyInput value={draft.discount} onChange={(v) => set('discount', v)} />
             </Field>
-            <Field label="Taxa de entrega">
-              <MoneyInput value={draft.delivery_fee} onChange={(v) => set('delivery_fee', v)} />
-            </Field>
+            {draft.fulfillment === 'entrega' && (
+              <Field label="Taxa de entrega">
+                <MoneyInput value={draft.delivery_fee} onChange={(v) => set('delivery_fee', v)} />
+              </Field>
+            )}
             <Field label="Forma de pagamento" error={errors.payment_method}>
               <Select value={draft.payment_method} onChange={(e) => set('payment_method', e.target.value as PaymentMethod)}>
                 {(Object.keys(PAYMENT_METHOD_LABEL) as PaymentMethod[]).map((m) => (
@@ -299,7 +367,7 @@ export default function OrderForm({ orderId, initial, onDone, onCancel }: Props)
       </div>
 
       {/* Resumo */}
-      <div className="sticky bottom-0 z-10 -mx-1 rounded-2xl bg-bordo p-4 text-creme shadow-lift">
+      <div className={cx("sticky z-10 -mx-1 rounded-2xl bg-bordo p-4 text-creme shadow-lift", inPage ? "bottom-20 lg:bottom-0" : "bottom-0")}>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
             <span>
@@ -313,9 +381,9 @@ export default function OrderForm({ orderId, initial, onDone, onCancel }: Props)
                 <span className="text-creme/60">Desconto:</span> <b>− {brl(draft.discount)}</b>
               </span>
             )}
-            {draft.delivery_fee > 0 && (
+            {fee > 0 && (
               <span>
-                <span className="text-creme/60">Entrega:</span> <b>+ {brl(draft.delivery_fee)}</b>
+                <span className="text-creme/60">Entrega:</span> <b>+ {brl(fee)}</b>
               </span>
             )}
           </div>

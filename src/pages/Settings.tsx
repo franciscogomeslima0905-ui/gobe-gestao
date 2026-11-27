@@ -1,6 +1,7 @@
-import { CakeSlice, Database, DownloadCloud, FileSpreadsheet, Info, Palette, Pencil, Plus, ShieldCheck, UploadCloud } from 'lucide-react';
-import { useRef, useState } from 'react';
-import { Button, Card, Checkbox, Field, Input, Modal, MoneyInput, PageHeader, SectionTitle, StatusBadge, cx } from '../components/ui';
+import { CakeSlice, Database, DownloadCloud, FileSpreadsheet, Info, Palette, Pencil, Plus, QrCode, ShieldCheck, UploadCloud } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useSettings } from '../context/SettingsContext';
+import { Button, Card, Checkbox, Field, Input, Modal, MoneyInput, PageHeader, SectionTitle, Select, StatusBadge, cx } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useData, type BackupFile } from '../context/DataContext';
 import { exportStockAsync, useStock, type StockBackup } from '../context/StockContext';
@@ -9,7 +10,7 @@ import { productLabel } from '../lib/calc';
 import { PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, STATUS_META } from '../lib/constants';
 import { exportExcel, exportJSON } from '../lib/export';
 import { brl, fmtDate, fmtDateTime, fmtPhone, todayISO } from '../lib/format';
-import type { DisplayStatus, Product } from '../lib/types';
+import type { DisplayStatus, PixKeyType, Product } from '../lib/types';
 
 export default function SettingsPage() {
   const { products, orders, payments, setProductActive, exportBackup, restoreBackup, getOrder } = useData();
@@ -218,6 +219,8 @@ export default function SettingsPage() {
         </Card>
       </div>
 
+      <PixCapacityCard />
+
       <Card>
         <SectionTitle icon={Palette} title="Legenda de cores" />
         <div className="flex flex-wrap gap-2">
@@ -301,5 +304,68 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
         )}
       </div>
     </Modal>
+  );
+}
+
+function PixCapacityCard() {
+  const { settings, save, available } = useSettings();
+  const { toast } = useUI();
+  const [pix, setPix] = useState(settings.pix);
+  const [capacity, setCapacity] = useState(settings.capacity);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setPix(settings.pix);
+    setCapacity(settings.capacity);
+  }, [settings]);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      await save({ pix: { ...pix, key: pix.key.trim() }, capacity: Math.max(0, Math.round(capacity)) });
+      toast('Configurações salvas!');
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <SectionTitle icon={QrCode} title="Pix e limite de produção" subtitle="Usados nas mensagens, no QR Code e nos avisos de dia lotado" />
+      {!available ? (
+        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Rode o arquivo supabase/03_melhorias.sql no Supabase para ativar esta parte.</p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Tipo da chave Pix">
+            <Select value={pix.type} onChange={(e) => setPix({ ...pix, type: e.target.value as PixKeyType })}>
+              <option value="telefone">Telefone</option>
+              <option value="cpf">CPF</option>
+              <option value="cnpj">CNPJ</option>
+              <option value="email">E-mail</option>
+              <option value="aleatoria">Chave aleatória</option>
+            </Select>
+          </Field>
+          <Field label="Chave Pix">
+            <Input value={pix.key} onChange={(e) => setPix({ ...pix, key: e.target.value })} placeholder="Ex.: (51) 99999-9999" />
+          </Field>
+          <Field label="Nome que aparece no Pix" hint="Sem acentos, até 25 letras">
+            <Input value={pix.name} onChange={(e) => setPix({ ...pix, name: e.target.value })} maxLength={25} />
+          </Field>
+          <Field label="Cidade">
+            <Input value={pix.city} onChange={(e) => setPix({ ...pix, city: e.target.value })} maxLength={15} />
+          </Field>
+          <Field label="Limite de fatias por dia" hint="0 = sem limite. Avisa quando o dia lotar.">
+            <Input type="number" min={0} value={capacity || ''} onChange={(e) => setCapacity(Number(e.target.value) || 0)} placeholder="0" />
+          </Field>
+          <div className="flex items-end">
+            <Button onClick={submit} loading={saving} className="w-full sm:w-auto">
+              Salvar
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }

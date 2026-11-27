@@ -1,10 +1,10 @@
-import { MessageCircle, PackageCheck, Truck } from 'lucide-react';
+import { MapPin, MessageCircle, PackageCheck, Truck } from 'lucide-react';
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { errorMessage, useUI } from '../context/UIContext';
 import { productLabel } from '../lib/calc';
 import { STATUS_META } from '../lib/constants';
-import { fmtPhone, whatsappLink } from '../lib/format';
+import { fmtPhone } from '../lib/format';
 import type { OrderFull, ProductionStatus } from '../lib/types';
 import { Checkbox, StatusBadge, cx } from './ui';
 
@@ -112,21 +112,35 @@ export function DeliveryButton({ order }: { order: OrderFull }) {
 }
 
 export function CustomerCell({ order }: { order: OrderFull }) {
-  const wa = whatsappLink(order.phone, `Olá, ${order.customer_name.split(' ')[0]}! Aqui é da GOBÊ Confeitaria 🍫`);
+  const { openShare } = useUI();
+  const mapsUrl = order.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.address)}` : null;
   return (
-    <div className="min-w-0">
-      <p className={cx('font-semibold text-bordo', order.cancelled && 'line-through opacity-60')}>{order.customer_name}</p>
-      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-bordo/50">
-        {order.delivery_time && <span>🕒 {order.delivery_time.slice(0, 5)}</span>}
-        {order.phone &&
-          (wa ? (
-            <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-700 hover:underline">
-              <MessageCircle className="h-3 w-3" />
-              {fmtPhone(order.phone)}
+    <div className="flex min-w-0 items-start gap-2">
+      <button
+        onClick={() => openShare(order.id)}
+        title="WhatsApp, Pix e comprovante"
+        aria-label="WhatsApp, Pix e comprovante"
+        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm transition hover:bg-emerald-600 active:scale-95 print:hidden"
+      >
+        <MessageCircle className="h-4 w-4" />
+      </button>
+      <div className="min-w-0">
+        <p className={cx('font-semibold text-bordo', order.cancelled && 'line-through opacity-60')}>
+          {order.customer_name}
+          {order.source === 'site' && <span className="ml-1.5 rounded-full bg-sky-100 px-1.5 py-0.5 align-middle text-[10px] font-bold text-sky-700">SITE</span>}
+        </p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-bordo/50">
+          {order.delivery_time && <span>🕒 {order.delivery_time.slice(0, 5)}</span>}
+          {order.fulfillment === 'retirada' ? (
+            <span className="font-semibold text-sky-700">Retirada</span>
+          ) : mapsUrl ? (
+            <a href={mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-bordo/70 underline-offset-2 hover:underline">
+              <MapPin className="h-3 w-3" />
+              {order.address}
             </a>
-          ) : (
-            <span>{fmtPhone(order.phone)}</span>
-          ))}
+          ) : null}
+          {order.phone && <span>{fmtPhone(order.phone)}</span>}
+        </div>
       </div>
     </div>
   );

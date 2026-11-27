@@ -1,4 +1,4 @@
-import { Ban, Copy, MoreVertical, Pencil, RotateCcw, Trash2, Undo2, Wallet } from 'lucide-react';
+import { Ban, Copy, MessageCircle, MoreVertical, Pencil, RotateCcw, Trash2, Undo2, Wallet } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { errorMessage, useUI } from '../context/UIContext';
@@ -9,12 +9,13 @@ import { IconButton, cx } from './ui';
 
 export function useOrderActions() {
   const { cancelOrder, restoreOrder, deleteOrder, products } = useData();
-  const { confirm, toast, openOrderForm, openPayment } = useUI();
+  const { confirm, toast, openOrderForm, openPayment, openShare } = useUI();
 
   return {
     edit: (o: OrderFull) => openOrderForm({ orderId: o.id }),
     duplicate: (o: OrderFull) => openOrderForm({ initial: duplicateDraft(o, products) }),
     pay: (o: OrderFull) => openPayment(o.id),
+    share: (o: OrderFull) => openShare(o.id),
     refund: (o: OrderFull) => openPayment(o.id, 'estorno'),
     cancel: async (o: OrderFull) => {
       const r = await confirm({
@@ -103,6 +104,7 @@ export default function OrderActions({ order, allowDelete = false }: { order: Or
 
   const items = [
     { label: 'Editar', icon: Pencil, run: () => a.edit(order), show: true },
+    { label: 'WhatsApp, Pix e comprovante', icon: MessageCircle, run: () => a.share(order), show: true },
     { label: 'Duplicar', icon: Copy, run: () => a.duplicate(order), show: true },
     { label: 'Registrar pagamento', icon: Wallet, run: () => a.pay(order), show: !order.cancelled && order.balance > 0 },
     { label: 'Registrar estorno', icon: Undo2, run: () => a.refund(order), show: order.netPaid > 0 },

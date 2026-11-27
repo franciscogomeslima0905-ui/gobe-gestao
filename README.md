@@ -65,6 +65,14 @@ Isso cria ingredientes (com uma lista inicial zerada para você completar), movi
 
 > Já usa o sistema? Pode rodar sem medo: o script não apaga nada e pode ser executado mais de uma vez.
 
+### 4.2. Ative entrega/retirada, Pix e limite diário
+
+No **SQL Editor**, rode também o **`supabase/03_melhorias.sql`**. Depois, em **Produtos e configurações › Pix e limite de produção**, cadastre a chave Pix e, se quiser, o limite de fatias por dia.
+
+### 4.3. Ative a página de pedidos para clientes
+
+Rode também o **`supabase/04_pedidos_site.sql`**. A página **`/pedir`** (ex.: `https://gobegestao.netlify.app/pedir`) fica aberta para os clientes, sem login: eles escolhem os brownies, o dia, entrega ou retirada e enviam. O pedido entra no sistema com o selo **SITE**. Os visitantes só conseguem ver o cardápio e enviar pedidos; preços, datas e limite diário são conferidos no banco.
+
 ### 5. Crie os usuários da equipe
 
 1. Vá em **Authentication** › **Users** › **Add user** › **Create new user**.
@@ -159,6 +167,14 @@ No plano gratuito o Google limita a quantidade de leituras por dia (sobra para o
 - **Produção automática**: ao marcar todas as fatias de um pedido, ele vira **Pronto**; com algumas marcadas, **Em produção**.
 - **Cancelar** mantém o pedido no histórico (vermelho) e o tira de vendas e produção. Se houver valor recebido, aparece o aviso para registrar o **estorno**. **Excluir definitivamente** só existe no Histórico.
 - **Cores**: amarelo = produção pendente · azul = em produção · verde = pronto · roxo = entregue · vermelho = cancelado.
+
+## Atalhos do dia a dia
+
+- **Colar pedido do WhatsApp** (no topo do formulário de novo pedido): cole a mensagem do cliente e o pedido é preenchido pela IA. Usa a mesma `GEMINI_API_KEY` da notinha.
+- **Botão verde do WhatsApp** em cada pedido: mensagens prontas (confirmado, pronto, saiu para entrega, cobrança com Pix), QR Code Pix com o valor certo e comprovante em imagem.
+- **Entregas**: um só item no menu, com os dias em botões no topo e abas por situação (a produzir, prontos, entregues sem pagamento, concluídos, cancelados).
+- **Menu de baixo no celular**: Início, Entregas, + Novo pedido, Produção e Mais.
+- **Aviso de pedido novo** quando outra pessoa da equipe cadastra um pedido.
 
 ## Como estoque, custos e lucro funcionam juntos
 
