@@ -88,7 +88,7 @@ export function DeliveryButton({ order }: { order: OrderFull }) {
     setBusy(true);
     try {
       await setDeliveryStatus(order.id, delivered ? 'pendente' : 'entregue');
-      toast(delivered ? 'Entrega desfeita.' : 'Pedido marcado como entregue! 🎉');
+      toast(delivered ? 'Entrega desfeita.' : order.balance > 0.004 ? 'Entregue! O pedido foi para “Entregues sem pagamento”.' : 'Pedido concluído: entregue e pago! 🎉');
     } catch (e) {
       toast(errorMessage(e), 'error');
     } finally {
@@ -129,5 +129,19 @@ export function CustomerCell({ order }: { order: OrderFull }) {
           ))}
       </div>
     </div>
+  );
+}
+
+/** Botão rápido de receber, para pedidos com saldo */
+export function ReceiveButton({ order }: { order: OrderFull }) {
+  const { openPayment } = useUI();
+  if (order.cancelled || order.balance <= 0.004) return null;
+  return (
+    <button
+      onClick={() => openPayment(order.id)}
+      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white transition hover:bg-emerald-700"
+    >
+      Receber {order.balance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+    </button>
   );
 }
