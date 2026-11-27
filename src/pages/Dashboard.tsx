@@ -24,6 +24,7 @@ import {
   Crown,
   Hourglass,
   PackageCheck,
+  QrCode,
   Receipt,
   TrendingUp,
   Trophy,
@@ -34,6 +35,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CountBars, Donut, EvolutionArea, HorizontalBars, MoneyBars } from '../components/Charts';
 import PeriodFilter, { defaultPeriod } from '../components/PeriodFilter';
+import QuickPixModal from '../components/QuickPixModal';
 import { Card, EmptyState, IconButton, PageHeader, SectionTitle, StatCard, cx } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -123,6 +125,7 @@ export default function Dashboard() {
   const customers = useMemo(() => customerStats(p.act).sort((a, b) => b.total - a.total).slice(0, 8), [p.act]);
   const alerts = useMemo(() => buildAlerts(orders, ingredients).slice(0, 6), [orders, ingredients]);
 
+  const [pixOpen, setPixOpen] = useState(false);
   const greeting = now.getHours() < 12 ? 'Bom dia' : now.getHours() < 18 ? 'Boa tarde' : 'Boa noite';
 
   return (
@@ -131,6 +134,23 @@ export default function Dashboard() {
         title={`${greeting}${staffName ? `, ${staffName.split(' ')[0]}` : ''}!`}
         subtitle={capFirst(fmtPattern(now, "EEEE, dd 'de' MMMM 'de' yyyy"))}
       />
+
+      {/* Cobrança rápida por Pix */}
+      <button
+        type="button"
+        onClick={() => setPixOpen(true)}
+        className="flex w-full items-center gap-4 rounded-3xl bg-cereja p-4 text-left text-white shadow-lg shadow-cereja/25 transition hover:bg-bordo active:scale-[0.99] sm:p-5"
+      >
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/15">
+          <QrCode className="h-7 w-7" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-lg font-semibold leading-tight">Cobrar com Pix</span>
+          <span className="block text-sm text-white/80">Gerar QR Code para o cliente pagar agora</span>
+        </span>
+        <ChevronRight className="h-6 w-6 shrink-0 text-white/80" />
+      </button>
+      {pixOpen && <QuickPixModal onClose={() => setPixOpen(false)} />}
 
       {/* Faturamento fixo */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
